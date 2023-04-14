@@ -1,0 +1,2341 @@
+# %%
+#CANDIDATE ELIMINATION
+
+import pandas as pd 
+import numpy as np
+
+# %%
+data = pd.read_csv("EnjoySport.csv")
+data
+
+# %%
+def CandidateElimination(data):
+    dataset = data.values.tolist()
+    print("\nThe dataset is :\n",dataset)
+
+    #initialize the specific hypothesis
+    s=dataset[0][0:-1]
+    print("The initial value of s is :\n",s)
+
+    #initialize the general hypothesis
+    g=[['?' for i in range(len(s))] for j in range(len(s))]
+    print("The initial value of g is :\n",g)
+    for row in dataset:
+        if row[-1]=="Yes":
+            for j in range(len(s)):
+                if row[j]!=s[j]:
+                    s[j]='?'
+                    g[j][j]='?'
+        elif row[-1]=="No":
+            for j in range(len(s)):
+                if row[j]!=s[j]:
+                    g[j][j]=s[j]
+                else:
+                    g[j][j]="?"
+        print("\nAfter",dataset.index(row)+1,"th insatnce")
+            
+        print("Specific boundary is :",s)
+        print("General boundary is :",g)
+
+# %%
+CandidateElimination(data)
+
+# %%
+
+
+# %%
+#DIANA
+
+from sklearn.datasets import load_iris
+
+iris = load_iris()
+X = iris.data
+X
+
+# %%
+from scipy.spatial.distance import pdist
+
+dist_matrix = pdist(X)
+
+
+# %%
+from scipy.cluster.hierarchy import dendrogram, linkage
+from scipy.cluster.hierarchy import fcluster
+
+import matplotlib.pyplot as plt
+Z = linkage(dist_matrix, method='ward')
+
+clusters = fcluster(Z, t=3, criterion='maxclust')
+ltp=plt
+dendrogram(Z)
+ltp.show()
+
+# %%
+import matplotlib.pyplot as plt
+import pandas as pd
+
+df = pd.DataFrame(data=X, columns=['sepal_length', 'sepal_width', 'petal_length', 'petal_width'])
+df['cluster'] = clusters - 1
+
+plt.scatter(df['petal_length'], df['petal_width'], c=df['cluster'])
+plt.xlabel('Petal Length')
+plt.ylabel('Petal Width')
+plt.show()
+
+
+
+# %%
+
+
+# %%
+
+
+# %%
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.datasets import load_iris
+from scipy.cluster.hierarchy import dendrogram, fcluster, linkage
+iris = load_iris()
+X = iris.data
+y = iris.target
+Z = linkage(X, method='single', metric='euclidean')
+clusters = fcluster(Z, t=3, criterion='maxclust')
+for i in range(1, 4):
+    print(f"Cluster {i} has {np.sum(clusters == i)} points")
+colors = ['red', 'green', 'blue']
+
+for i in range(1, 4):
+    plt.scatter(X[clusters == i, 0], X[clusters == i, 1], c=colors[i-1], label=f'Cluster {i}')
+
+plt.xlabel('Sepal length')
+plt.ylabel('Sepal width')
+plt.legend()
+plt.show()
+ltp=plt
+dendrogram(Z)
+ltp.show()
+
+# %% [markdown]
+# Without Lib
+
+# %%
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.datasets import load_iris
+
+
+# %%
+iris = load_iris()
+X = iris.data
+y = iris.target
+
+
+# %%
+def euclidean_distance(x1, x2):
+    return np.sqrt(np.sum((x1 - x2)**2))
+
+class Cluster:
+    def __init__(self, center):
+        self.center = center
+        self.points = [center]
+    
+    def update_center(self):
+        self.center = np.mean(self.points, axis=0)
+    
+    def distance_to(self, other):
+        return euclidean_distance(self.center, other.center)
+    
+    def merge(self, other):
+        self.points.extend(other.points)
+        self.update_center()
+        
+def diana_clustering(X, k):
+    # Initialize clusters with the first k data points as centers
+    clusters = [Cluster(center=X[i]) for i in range(k)]
+    
+    # Assign each remaining data point to its closest cluster
+    for i in range(k, len(X)):
+        distances = [c.distance_to(Cluster(center=X[i])) for c in clusters]
+        closest_cluster = clusters[np.argmin(distances)]
+        closest_cluster.points.append(X[i])
+        closest_cluster.update_center()
+    
+    # Iteratively merge clusters until there are only k clusters remaining
+    while len(clusters) > k:
+        # Compute the distance between each pair of clusters
+        distances = np.zeros((len(clusters), len(clusters)))
+        for i in range(len(clusters)):
+            for j in range(i+1, len(clusters)):
+                distances[i,j] = clusters[i].distance_to(clusters[j])
+        distances += distances.T
+        
+        # Identify the pair of clusters with the minimum distance
+        i, j = np.unravel_index(np.argmin(distances), distances.shape)
+        
+        # Merge the two clusters
+        clusters[i].merge(clusters[j])
+        del clusters[j]
+    
+    return clusters
+
+
+# %%
+clusters = diana_clustering(X, k=3)
+
+for i, c in enumerate(clusters):
+    print(f"Cluster {i+1} has {len(c.points)} points and center {c.center}")
+
+
+# %%
+colors = ['red', 'green', 'blue']
+labels = ['Cluster 1', 'Cluster 2', 'Cluster 3']
+
+for i, c in enumerate(clusters):
+    plt.scatter([p[0] for p in c.points], [p[1] for p in c.points], c=colors[i], label=labels[i])
+
+
+plt.xlabel('Sepal length')
+plt.ylabel('Sepal width')
+plt.legend()
+plt.show()
+
+
+# %%
+
+
+# %%
+#FIND-S
+
+import numpy as np
+import pandas as pd
+
+# %%
+print("The given data is:")
+data = pd.read_csv("EnjoySport.csv")
+data
+
+# %%
+def FindS(data):
+    dt = np.array(data)
+    n = len(dt[0])-1
+    target = np.array(data)[:,-1]
+    specific_hypothesis=["_"]*n
+    print("H0 = ",specific_hypothesis)
+    hypothesis = []
+    for i, val in enumerate(target): 
+        if val == 'Yes': 
+            specific_hypothesis=dt[i][:-1].copy()
+            hypothesis.append(specific_hypothesis)
+            break
+    for i, val in enumerate(dt): 
+        
+        if target[i] =='Yes': 
+            for x in range(n): 
+                if val[x] != specific_hypothesis[x]: 
+                    specific_hypothesis[x]='?'
+                else: 
+                    pass
+        hypothesis.append(specific_hypothesis)
+        print("H"+str(i+1)+" = ",specific_hypothesis)
+    
+    print("\nThe maximally specific hypothesis is:\n", specific_hypothesis)
+    return
+
+# %%
+FindS(data)
+
+# %%
+
+
+# %%
+# ADABOOST 
+
+
+from sklearn.ensemble import AdaBoostClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.datasets import make_classification
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix
+X, y = make_classification(n_samples=1000, n_features=10, n_informative=5, n_redundant=0, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# %% [markdown]
+# # New Section
+
+# %%
+base_estimator = DecisionTreeClassifier(max_depth=1, random_state=42)
+adaboost = AdaBoostClassifier(base_estimator=base_estimator, n_estimators=50, random_state=42)
+adaboost.fit(X_train, y_train)
+y_pred = adaboost.predict(X_test)
+accuracy = accuracy_score(y_test, y_pred)
+print("Accuracy: %.2f%%" % (accuracy * 100.0))
+
+
+# %%
+from sklearn.metrics._plot.confusion_matrix import confusion_matrix
+cm=confusion_matrix(y_test,y_pred)
+cm
+
+# %%
+
+
+# %% [markdown]
+# without libraries
+# 
+
+# %%
+import numpy as np
+from typing import List
+
+
+class DecisionStump:
+    def __init__(self):
+        self.polarity = 1
+        self.feature_index = None
+        self.threshold = None
+        self.alpha = None
+
+
+class AdaBoost:
+    def __init__(self, num_estimators):
+        self.num_estimators = num_estimators
+        self.estimators = []
+    
+    def fit(self, X, y):
+        n_samples, n_features = X.shape
+        
+        # Initialize weights to 1/N
+        weights = np.full(n_samples, 1 / n_samples)
+        
+        for _ in range(self.num_estimators):
+            # Train a decision stump on the weighted dataset
+            stump = DecisionStump()
+            min_error = float('inf')
+            for feature_idx in range(n_features):
+                feature_values = np.expand_dims(X[:, feature_idx], axis=1)
+                unique_values = np.unique(feature_values)
+                for threshold in unique_values:
+                    # Try all thresholds for this feature
+                    p = 1
+                    prediction = np.ones_like(y)
+                    prediction[X[:, feature_idx] < threshold] = -1
+                    error = sum(weights[y != prediction])
+                    if error > 0.5:
+                        error = 1 - error
+                        p = -1
+                    
+                    # Keep track of the best decision stump so far
+                    if error < min_error:
+                        stump.polarity = p
+                        stump.threshold = threshold
+                        stump.feature_index = feature_idx
+                        min_error = error
+            
+            # Calculate the alpha value for the decision stump
+            eps = 1e-10
+            stump.alpha = 0.5 * np.log((1.0 - min_error + eps) / (min_error + eps))
+            
+            # Update the sample weights based on the decision stump
+            predictions = np.ones_like(y)
+            negative_idx = (stump.polarity * X[:, stump.feature_index] < stump.polarity * stump.threshold)
+            predictions[negative_idx] = -1
+            weights *= np.exp(-stump.alpha * y * predictions)
+            weights /= np.sum(weights)
+            
+            # Save the decision stump
+            self.estimators.append(stump)
+    
+    def predict(self, X):
+        n_samples = X.shape[0]
+        predictions = np.zeros(n_samples)
+        for stump in self.estimators:
+            pred = np.ones(n_samples)
+            negative_idx = (stump.polarity * X[:, stump.feature_index] < stump.polarity * stump.threshold)
+            pred[negative_idx] = -1
+            predictions += stump.alpha * pred
+        
+        return np.sign(predictions)
+
+
+# %%
+X = np.array([[1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7]])
+y = np.array([1, 1, 1, -1, -1, -1])
+
+adaboost = AdaBoost(num_estimators=3)
+adaboost.fit(X, y)
+
+# Predict on new data
+X_test = np.array([[0, 1], [7, 8]])
+y_pred = adaboost.predict(X_test)
+print(y_pred)
+
+# %%
+
+
+# %% [markdown]
+# AGNES(BOTTOM UP)
+
+# %%
+#AGNES
+
+from sklearn.datasets import load_iris
+
+iris = load_iris()
+X = iris.data
+
+
+# %%
+from sklearn.cluster import AgglomerativeClustering
+
+clustering = AgglomerativeClustering(n_clusters=3, linkage='ward', affinity='euclidean')
+clustering.fit(X)
+
+
+# %%
+import matplotlib.pyplot as plt
+import pandas as pd
+
+df = pd.DataFrame(data=X, columns=['sepal_length', 'sepal_width', 'petal_length', 'petal_width'])
+df['cluster'] = clustering.labels_
+
+plt.scatter(df['sepal_length'], df['sepal_width'], c=df['cluster'])
+plt.xlabel('sepal length')
+plt.ylabel('sepal width')
+plt.show()
+
+
+# %%
+import numpy as np
+from typing import List, Tuple
+from matplotlib import pyplot as plt
+from sklearn.datasets import load_iris
+from sklearn.cluster import AgglomerativeClustering
+from scipy.cluster.hierarchy import dendrogram, linkage
+
+# Load the iris dataset
+iris = load_iris()
+X = iris.data
+y = iris.target
+
+# Perform Agnes clustering with k=3 (number of classes in the iris dataset)
+agnes = AgglomerativeClustering(n_clusters=3)
+y_pred = agnes.fit_predict(X)
+
+# Print the clusters
+print("Clusters:")
+for i in range(3):
+    print(f"Cluster {i}: {np.where(y_pred == i)[0]}")
+
+# Visualize the clusters
+colors = ['r', 'g', 'b']
+for i in range(X.shape[0]):
+    plt.scatter(X[i, 0], X[i, 1], color=colors[int(y_pred[i])])
+plt.xlabel('Sepal length')
+plt.ylabel('Sepal width')
+plt.title('Agnes clustering of iris dataset')
+plt.show()
+ltp=plt
+# Create and show the dendrogram
+Z = linkage(X, method='ward')
+dendrogram(Z)
+ltp.show()
+
+
+# %%
+
+
+# %% [markdown]
+# Without Libraries
+
+# %%
+import numpy as np
+from typing import List, Tuple
+from matplotlib import pyplot as plt
+from sklearn.datasets import load_iris
+
+
+class Agnes:
+    def __init__(self, k):
+        self.k = k
+        self.clusters = []
+    
+    def fit(self, X):
+        n_samples = X.shape[0]
+        self.clusters = [[i] for i in range(n_samples)]
+        
+        while len(self.clusters) > self.k:
+            # Find the closest pair of clusters
+            min_dist = float('inf')
+            closest_clusters = None
+            for i in range(len(self.clusters)):
+                for j in range(i + 1, len(self.clusters)):
+                    dist = self._single_linkage_dist(X, self.clusters[i], self.clusters[j])
+                    if dist < min_dist:
+                        min_dist = dist
+                        closest_clusters = (i, j)
+            
+            # Merge the closest pair of clusters
+            self.clusters[closest_clusters[0]] += self.clusters[closest_clusters[1]]
+            del self.clusters[closest_clusters[1]]
+    
+    def predict(self, X):
+        y_pred = np.zeros(X.shape[0])
+        for i, cluster in enumerate(self.clusters):
+            for j in cluster:
+                y_pred[j] = i
+        return y_pred
+    
+    def _single_linkage_dist(self, X, cluster1, cluster2):
+        min_dist = float('inf')
+        for i in cluster1:
+            for j in cluster2:
+                dist = np.linalg.norm(X[i] - X[j])
+                if dist < min_dist:
+                    min_dist = dist
+        return min_dist
+
+
+# Load the iris dataset
+iris = load_iris()
+X = iris.data
+y = iris.target
+
+# Perform Agnes clustering with k=3 (number of classes in the iris dataset)
+agnes = Agnes(k=3)
+agnes.fit(X)
+
+# Predict the clusters for the data points
+y_pred = agnes.predict(X)
+
+# Print the clusters
+print("Clusters:")
+for i, cluster in enumerate(agnes.clusters):
+    print(f"Cluster {i}: {cluster}")
+
+# Visualize the clusters
+colors = ['r', 'g', 'b']
+for i in range(X.shape[0]):
+    plt.scatter(X[i, 0], X[i, 1], color=colors[int(y_pred[i])])
+plt.xlabel('Sepal length')
+plt.ylabel('Sepal width')
+plt.title('Agnes clustering of iris dataset')
+plt.show()
+
+
+# %%
+
+
+# %%
+#CART
+
+import numpy as np 
+import pandas as pd 
+from sklearn.model_selection import train_test_split 
+from sklearn.tree import DecisionTreeClassifier 
+from sklearn.preprocessing import LabelEncoder 
+
+# %%
+data = pd.read_csv('CART.csv') 
+print("Sample Dataset - \n",data,"\n") 
+
+# %%
+le_age = LabelEncoder() 
+data['age_n'] = le_age.fit_transform(data['age']) 
+le_job = LabelEncoder() 
+data['job_n'] = le_job.fit_transform(data['job']) 
+le_house = LabelEncoder() 
+data['house_n'] = le_house.fit_transform(data['house']) 
+le_credit = LabelEncoder() 
+data['credit_n'] = le_credit.fit_transform(data['credit']) 
+le_loan = LabelEncoder() 
+data['loan_n'] = le_loan.fit_transform(data['loan_approved']) 
+print("Given Data after Encoding - \n",data,"\n") 
+
+# %%
+X = data[['age_n','job_n','house_n','credit_n']] 
+print("X - Values\n",X,"\n") 
+
+# %%
+y = data['loan_approved'] 
+ly=LabelEncoder()
+y=ly.fit_transform(y)
+print("Y - Values\n",y,"\n") 
+
+# %%
+X_train,X_test,y_train,y_test = train_test_split(X,y,test_size=0.25) 
+
+
+# %%
+model = DecisionTreeClassifier(criterion='gini') 
+model.fit(X_train,y_train) 
+
+# %% [markdown]
+# 
+
+# %%
+print("Pedicted Values - ",model.predict(X_test)) 
+print("Original Values of Predicted Values - ",y_test.values) 
+print("Predicting for - [young,False,No,Good] - ",model.predict([[2,0,0,2]])) 
+print("Accuracy of Model",model.score(X_test,y_test))
+
+# %%
+#ID3
+
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.preprocessing import LabelEncoder 
+
+# %%
+data = pd.read_csv('id3.csv')
+print("Sample Dataset - \n",data,"\n")
+
+# %%
+le_a1 = LabelEncoder()
+data['a1_n'] = le_a1.fit_transform(data['a1'])
+
+le_a2 = LabelEncoder()
+data['a2_n'] = le_a1.fit_transform(data['a2'])
+
+le_a3 = LabelEncoder()
+data['a3_n'] = le_a1.fit_transform(data['a3'])
+
+print("Given Data after Encoding - \n",data,"\n") 
+
+# %%
+X = data[['a1_n','a2_n','a3_n']]
+print("X - Values\n",X,"\n")
+
+y = data['classification']
+print("Y - Values\n",y,"\n")
+
+# %%
+X_train,X_test,y_train,y_test=train_test_split(X,y,test_size=0.3)
+
+model = DecisionTreeClassifier(criterion='entropy')
+model.fit(X_train,y_train)
+
+print("Values predicted from test dataset - ",model.predict(X_test))
+print("Original Values of test dataset - ",y_test.values)
+print("Accuracy of Model",model.score(X_test,y_test)) 
+
+# %%
+
+
+# %%
+
+
+# %%
+import pandas as pd
+import numpy as np
+import math
+
+def entropy(data, target_attribute):
+    # Calculate the entropy of a dataset
+    target_labels = data[target_attribute].unique()
+    entropy = 0
+    for label in target_labels:
+        count = len(data[data[target_attribute] == label])
+        p = count / len(data)
+        entropy -= p * math.log2(p)
+    return entropy
+
+def information_gain(data, attribute, target_attribute):
+    # Calculate the information gain of an attribute in a dataset
+    attribute_values = data[attribute].unique()
+    gain = entropy(data, target_attribute)
+    for value in attribute_values:
+        subset = data[data[attribute] == value]
+        p = len(subset) / len(data)
+        gain -= p * entropy(subset, target_attribute)
+    return gain
+
+def id3(data, attributes, target_attribute):
+    # Build a decision tree using the ID3 algorithm
+    unique_labels = data[target_attribute].unique()
+    if len(unique_labels) == 1:
+        # If all examples have the same label, return a leaf node with that label
+        return unique_labels[0]
+    if len(attributes) == 0:
+        # If there are no more attributes to split on, return a leaf node with the majority label
+        label_counts = data[target_attribute].value_counts()
+        return label_counts.index[0]
+    best_attribute = max(attributes, key=lambda attribute: information_gain(data, attribute, target_attribute))
+    tree = {best_attribute: {}}
+    remaining_attributes = [attribute for attribute in attributes if attribute != best_attribute]
+    for value in data[best_attribute].unique():
+        subset = data[data[best_attribute] == value]
+        if len(subset) == 0:
+            # If there are no examples with this value, return a leaf node with the majority label
+            label_counts = data[target_attribute].value_counts()
+            tree[best_attribute][value] = label_counts.index[0]
+        else:
+            # Recursively build the subtree using the remaining attributes
+            tree[best_attribute][value] = id3(subset, remaining_attributes, target_attribute)
+    return tree
+
+def predict(row, tree):
+    # Traverse the decision tree until a leaf node is reached
+    while type(tree) == dict:
+        attribute = list(tree.keys())[0]
+        value = row[attribute]
+        if value not in tree[attribute]:
+            # If the value is not in the decision tree, return the majority class
+            label_counts = {}
+            for label in tree[attribute].values():
+                if label not in label_counts:
+                    label_counts[label] = 0
+                label_counts[label] += 1
+            return max(label_counts, key=label_counts.get)
+        tree = tree[attribute][value]
+    return tree
+
+# Load the tennis dataset
+data = pd.read_csv('tennis.csv')
+
+# Define the target attribute
+target_attribute = 'play'
+
+# Define the attributes
+attributes = list(data.columns)
+attributes.remove(target_attribute)
+
+# Split the data into training and testing sets
+split_index = int(0.8 * len(data))
+train_data = data.iloc[:split_index]
+test_data = data.iloc[split_index:]
+
+# Train the decision tree
+tree = id3(train_data, attributes, target_attribute)
+
+# Test the decision tree
+correct_predictions = 0
+for index, row in test_data.iterrows():
+    if predict(row, tree) == row[target_attribute]:
+        correct_predictions += 1
+
+accuracy = correct_predictions
+accuracy = correct_predictions / len(test_data)
+print(f"Accuracy: {accuracy}")
+
+# %%
+
+
+# %% [markdown]
+# CART ALGO without lib
+
+# %%
+import pandas as pd
+import numpy as np
+
+# Define the Node class to represent a decision tree node
+class Node:
+    def __init__(self, feature=None, threshold=None, left=None, right=None, label=None):
+        self.feature = feature  # index of feature to split on
+        self.threshold = threshold  # threshold to split on
+        self.left = left  # left subtree
+        self.right = right  # right subtree
+        self.label = label  # label of leaf node
+
+# Define the decision tree function
+def decision_tree(X, y):
+    n, m = X.shape
+
+    # Base case: all labels are the same
+    if len(np.unique(y)) == 1:
+        return Node(label=y[0])
+
+    # Base case: no more features to split on
+    if m == 0:
+        return Node(label=np.bincount(y).argmax())
+
+    # Find the best feature to split on
+    best_feature, best_threshold, min_gini = None, None, 1.0
+    for i in range(m):
+        for threshold in np.unique(X[:, i]):
+            left_indices = X[:, i] < threshold
+            left_y = y[left_indices]
+            right_y = y[~left_indices]
+            if len(left_y) > 0 and len(right_y) > 0:
+                gini = (len(left_y) / n) * gini_index(left_y) + (len(right_y) / n) * gini_index(right_y)
+                if gini < min_gini:
+                    best_feature, best_threshold, min_gini = i, threshold, gini
+
+    # Create the node and its subtrees
+    left_indices = X[:, best_feature] < best_threshold
+    left = decision_tree(X[left_indices], y[left_indices])
+    right = decision_tree(X[~left_indices], y[~left_indices])
+    return Node(feature=best_feature, threshold=best_threshold, left=left, right=right)
+
+# Define the Gini index function
+def gini_index(y):
+    _, counts = np.unique(y, return_counts=True)
+    probs = counts / len(y)
+    return 1 - np.sum(probs ** 2)
+
+# Test the decision tree on the iris dataset
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+
+iris = load_iris()
+X_train, X_test, y_train, y_test = train_test_split(iris.data, iris.target, test_size=0.2, random_state=42)
+
+tree = decision_tree(X_train, y_train)
+
+# Define a function to predict the label of a single instance using the decision tree
+def predict(instance, tree):
+    if tree.label is not None:
+        return tree.label
+    elif instance[tree.feature] < tree.threshold:
+        return predict(instance, tree.left)
+    else:
+        return predict(instance, tree.right)
+
+# Test the accuracy of the decision tree on the test set
+y_pred = np.array([predict(instance, tree) for instance in X_test])
+accuracy = np.mean(y_pred == y_test)
+print(f"Accuracy: {accuracy}")
+
+
+# %%
+
+
+# %%
+#KMeans
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+dataset = pd.read_csv("kmeans.csv")
+x = dataset.iloc[:,[3,4]].values
+
+# %%
+from sklearn.cluster import KMeans  
+import warnings
+warnings.filterwarnings("ignore")
+wcss_list= []  #Initializing the list for the values of WCSS  
+
+#Using for loop for iterations from 1 to 10.  
+for i in range(1, 11):  
+    kmeans = KMeans(n_clusters=i, init='k-means++',random_state= 42)  
+    kmeans.fit(x)  
+    wcss_list.append(kmeans.inertia_)  
+plt.plot(range(1, 11), wcss_list)  
+plt.title('Elbow Method Graph')  
+plt.xlabel('Number of clusters')  
+plt.ylabel('WCSS')  
+plt.show()
+
+# %%
+kmeans = KMeans(n_clusters = 5, init = 'k-means++', random_state = 42)
+y_kmeans = kmeans.fit_predict(x)
+
+# %%
+plt.scatter(x[y_kmeans == 0, 0], x[y_kmeans == 0, 1], s = 100, c = 'blue', label = 'Cluster 1-NonTarget') #for first cluster  
+plt.scatter(x[y_kmeans == 1, 0], x[y_kmeans == 1, 1], s = 100, c = 'green', label = 'Cluster 2-Careful') #for second cluster  
+plt.scatter(x[y_kmeans == 2, 0], x[y_kmeans == 2, 1], s = 100, c = 'red', label = 'Cluster 3-Sensible') #for third cluster  
+plt.scatter(x[y_kmeans == 3, 0], x[y_kmeans == 3, 1], s = 100, c = 'cyan', label = 'Cluster 4-Careless') #for fourth cluster  
+plt.scatter(x[y_kmeans == 4, 0], x[y_kmeans == 4, 1], s = 100, c = 'magenta', label = 'Cluster 5-Target') #for fifth cluster  
+plt.scatter(kmeans.cluster_centers_[:, 0], kmeans.cluster_centers_[:, 1], s = 300, c = 'yellow', label = 'Centroid')   
+plt.title('Clusters of customers')  
+plt.xlabel('Annual Income (k$)')  
+plt.ylabel('Spending Score (1-100)')  
+plt.legend()  
+plt.show()
+
+# %%
+
+
+# %%
+
+
+# %% [markdown]
+# without library
+
+# %%
+import numpy as np
+import matplotlib.pyplot as plt
+
+def k_means(X, K, max_iters=100):
+    centroids = X[np.random.choice(X.shape[0], K, replace=False)]
+    
+    for i in range(max_iters):
+        # Assign points to nearest centroid
+        distances = np.sqrt(np.sum((X[:, np.newaxis, :] - centroids) ** 2, axis=2))
+        labels = np.argmin(distances, axis=1)
+        
+        # Update centroids
+        for k in range(K):
+            centroids[k] = np.mean(X[labels == k], axis=0)
+    
+    return labels, centroids
+import pandas as pd
+dataset = pd.read_csv("kmeans.csv")
+X = dataset.iloc[:,[3,4]].values
+# Apply K-means algorithm
+labels, centroids = k_means(X, K=5)
+
+# Plot the clusters and centroids
+colors = ['r', 'g', 'b','y','pink']
+for i in range(5):
+    plt.scatter(X[labels == i, 0], X[labels == i, 1], c=colors[i], label=f'Cluster {i+1}')
+plt.scatter(centroids[:, 0], centroids[:, 1], marker='x', s=200, linewidths=3, color='k', label='Centroids')
+plt.xlabel('Annual Income')
+plt.ylabel('Spending Score')
+plt.legend()
+plt.show()
+
+# %%
+
+
+# %%
+#KModes
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from kmodes.kmodes import KModes
+from sklearn.preprocessing import LabelEncoder
+from sklearn.decomposition import PCA
+from sklearn.metrics import silhouette_score
+df = pd.read_csv("WA_Fn-UseC_-Telco-Customer-Churn.csv")
+df = df.drop(['customerID'], axis=1)
+le = LabelEncoder()
+for column in df.columns:
+    if df[column].dtype == np.object:
+        df[column] = le.fit_transform(df[column])
+
+
+# %%
+pip install kmodes
+
+# %%
+kmode = KModes(n_clusters=4, init='Huang', n_init=5, verbose=0)
+clusters = kmode.fit_predict(df)
+
+
+# %%
+pca = PCA(n_components=2)
+principal_components = pca.fit_transform(df)
+principal_df = pd.DataFrame(data=principal_components, columns=['PC1', 'PC2'])
+principal_df['cluster'] = clusters
+plt.figure(figsize=(8, 8))
+plt.scatter(principal_df['PC1'], principal_df['PC2'], c=principal_df['cluster'], s=50)
+plt.title('Clusters')
+plt.xlabel('PC1')
+plt.ylabel('PC2')
+plt.show()
+
+# %%
+from sklearn.metrics import silhouette_score
+
+score = silhouette_score(df, clusters, metric='euclidean')
+print('Silhouette score:', score)
+
+# %%
+# importing necessary libraries
+import pandas as pd
+import numpy as np
+# !pip install kmodes
+from kmodes.kmodes import KModes
+import matplotlib.pyplot as plt
+%matplotlib inline
+
+# Generate sample data
+data = np.array([
+    ['A', 'B', 'C', 'D'],
+    ['A', 'B', 'E', 'F'],
+    ['A', 'B', 'C', 'F'],
+    ['A', 'B', 'E', 'D'],
+    ['G', 'H', 'I', 'J'],
+    ['G', 'H', 'K', 'L'],
+    ['G', 'H', 'I', 'L'],
+    ['G', 'H', 'K', 'J'],
+])
+
+# Elbow curve to find optimal K
+cost = []
+K = range(1,5)
+for k in list(K):
+	kmode = KModes(n_clusters=k, init = "random", n_init = 5, verbose=1)
+	kmode.fit_predict(data)
+	cost.append(kmode.cost_)
+	
+plt.plot(K, cost, 'x-')
+plt.xlabel('No. of clusters')
+plt.ylabel('Cost')
+plt.title('Elbow Curve')
+plt.show()
+
+
+# %%
+from kmodes.kmodes import KModes
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+# Initialize KModes object and fit the data
+km = KModes(n_clusters=2, init='Huang', verbose=1)
+clusters = km.fit_predict(data)
+
+# Get the frequency of each category within each cluster
+cluster_freq = []
+for i in range(km.n_clusters):
+    freq = {}
+    for j in range(data.shape[1]):
+        freq[j] = {}
+        for k in np.unique(data[:, j]):
+            freq[j][k] = np.sum(data[clusters == i, j] == k)
+    cluster_freq.append(freq)
+
+# Plot the frequency of each category within each cluster
+fig, axs = plt.subplots(km.n_clusters, data.shape[1], figsize=(10, 6), sharex=True)
+for i in range(km.n_clusters):
+    for j in range(data.shape[1]):
+        axs[i, j].bar(cluster_freq[i][j].keys(), cluster_freq[i][j].values())
+        axs[i, j].set_title('Cluster {} - Feature {}'.format(i, j))
+plt.tight_layout()
+plt.show()
+
+
+# %%
+
+print(km.cluster_centroids_)
+
+# %%
+
+
+# %%
+
+
+# %% [markdown]
+# Without Library
+
+# %%
+import numpy as np
+import pandas as pd
+import random
+
+def hamming_distance(x1, x2):
+    return np.sum(x1 != x2)
+
+class KModes:
+    def __init__(self, n_clusters, max_iter):
+        self.n_clusters = n_clusters
+        self.max_iter = max_iter
+    
+    def fit(self, X):
+        # Initialize centroids randomly
+        self.centroids = []
+        for i in range(self.n_clusters):
+            centroid = np.random.choice(X.shape[0])
+            self.centroids.append(X[centroid])
+        
+        for i in range(self.max_iter):
+            # Assign each data point to the nearest centroid
+            clusters = [[] for _ in range(self.n_clusters)]
+            for j, x in enumerate(X):
+                distances = [hamming_distance(x, c) for c in self.centroids]
+                cluster_idx = np.argmin(distances)
+                clusters[cluster_idx].append(j)
+            
+            # Update centroids
+            for k in range(self.n_clusters):
+                if clusters[k]:
+                    cluster_data = X[clusters[k]]
+                    mode = []
+                    for feature in range(cluster_data.shape[1]):
+                        feature_counts = np.bincount(cluster_data[:, feature])
+                        mode.append(np.argmax(feature_counts))
+                    self.centroids[k] = mode
+        
+        # Return the cluster labels, clusters for each data point, and cluster centers
+        self.labels_ = np.zeros(X.shape[0])
+        self.clusters_ = [[] for _ in range(self.n_clusters)]
+        for i, cluster in enumerate(clusters):
+            for j in cluster:
+                self.labels_[j] = i
+                self.clusters_[i].append(X[j])
+        self.centroids_ = self.centroids
+        return self.labels_, self.clusters_, self.centroids_
+
+
+# %%
+# Example usage
+data = np.array([[1, 2, 3, 4],
+                 [1, 2, 3, 5],
+                 [2, 3, 4, 5],
+                 [2, 3, 5, 6],
+                 [7, 8, 9, 10],
+                 [7, 8, 9, 11]])
+km = KModes(n_clusters=2, max_iter=100)
+labels, clusters, centroids = km.fit(data)
+print('Cluster centers:')
+for centroid in centroids:
+    print(centroid)
+
+
+# %%
+for i, cluster in enumerate(clusters):
+    print(f'Cluster {i}:')
+    for row in cluster:
+        print(row)
+    print()
+
+# %%
+
+
+# %%
+#KNN
+
+import numpy as np 
+import pandas as pd 
+from sklearn.neighbors import KNeighborsClassifier 
+
+# %%
+dataset = pd.read_csv('knn.csv') 
+x=dataset.iloc[:,0:-1].values 
+y=dataset.iloc[:,-1].values 
+dataset
+
+# %%
+print("x",x) 
+print("y",y)
+
+# %%
+knn = KNeighborsClassifier(n_neighbors = 4) 
+knn.fit(x, y) 
+predictions = knn.predict([[170,57]]) 
+print("Prediction for - [Height=170, Weight=57] for k=3 is ",predictions) 
+print("Accuracy of Model",knn.score(x,y))
+
+# %%
+
+
+# %%
+#KNN-without libraries
+
+import numpy as np 
+import pandas as pd 
+import scipy.spatial
+import math
+
+# %%
+dataset = pd.read_csv('knn.csv') 
+x=dataset.iloc[:,0:-1].values 
+y=dataset.iloc[:,-1].values 
+
+# %%
+print("x",x) 
+print("y",y)
+
+# %%
+def most_frequent(List):
+    counter = 0
+    num = List[0]
+     
+    for i in List:
+        curr_frequency = List.count(i)
+        if(curr_frequency > counter):
+            counter = curr_frequency
+            num = i
+ 
+    return num
+
+# %%
+def cal_distance(x,y,x_pred,y_pred): 
+    distance = math.sqrt((x-x_pred)**2+(y-y_pred)**2)
+
+    return distance
+
+# %%
+def knn(x,k):
+    x_pred = 170
+    y_pred = 57
+    dist = []
+    res = []
+    for i in range(len(x)):
+        dist.append(cal_distance(int(x[i][0]),int(x[i][1]),x_pred,y_pred))
+    
+    ranks = pd.Series(dist).rank().tolist()
+
+    for i in range(1,k+1):
+        res.append(y[ranks.index(i)])
+
+    return most_frequent(res)
+
+# %%
+print("The result for Height = 170 and Weight = 57 is ", knn(x,3))
+
+# %%
+#LinearRegression
+
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+
+# Importing the dataset
+dataset = pd.read_csv('salary_data.csv')
+dataset
+
+# %%
+X = dataset.iloc[:, :-1].values #get a copy of dataset exclude last column
+y = dataset.iloc[:, 1].values #get array of dataset in column 1st
+
+# Splitting the dataset into the Training set and Test set
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1/3, random_state=0)
+
+# Fitting Simple Linear Regression to the Training set
+
+regressor = LinearRegression()
+regressor.fit(X_train, y_train)
+
+# Predicting the Test set results
+y_pred = regressor.predict(X_test)
+y_pred
+
+# %%
+viz_train = plt
+viz_train.scatter(X_train, y_train, color='red')
+viz_train.plot(X_train, regressor.predict(X_train), color='blue')
+viz_train.xlabel('Year of Experience')
+viz_train.ylabel('Salary')
+viz_train.title('Salary VS Experience (Training set)')
+viz_train.show()
+
+# %%
+viz_test = plt
+viz_test.scatter(X_test, y_test, color='red')
+viz_test.plot(X_train, regressor.predict(X_train), color='blue')
+viz_test.title('Salary VS Experience (Test set)')
+viz_test.xlabel('Year of Experience')
+viz_test.ylabel('Salary')
+viz_test.show()
+
+# %%
+print("Equation of the resulting regression line is: y = ", regressor.coef_,"*x + ",regressor.intercept_)
+
+pd.DataFrame({'x_test':list(X_test), 'y_test':list(y_test), 'y_pred':list(y_pred)})
+
+# %%
+
+
+# %% [markdown]
+# Without Libraries
+
+# %%
+
+import pandas as pd
+from math import pow
+
+
+def get_headers(dataframe):
+    return dataframe.columns.values
+
+
+def cal_mean(readings):
+    readings_total = sum(readings)
+    number_of_readings = len(readings)
+    mean = readings_total / float(number_of_readings)
+    return mean
+
+
+def cal_variance(readings):
+    readings_mean = cal_mean(readings)
+    mean_difference_squared_readings = [pow((reading - readings_mean), 2) for reading in readings]
+    variance = sum(mean_difference_squared_readings)
+    return variance / float(len(readings) - 1)
+
+
+def cal_covariance(readings_1, readings_2):
+    readings_1_mean = cal_mean(readings_1)
+    readings_2_mean = cal_mean(readings_2)
+    readings_size = len(readings_1)
+    covariance = 0.0
+    for i in range(0, readings_size):
+        covariance += (readings_1[i] - readings_1_mean) * (readings_2[i] - readings_2_mean)
+    return covariance / float(readings_size - 1)
+
+
+def cal_simple_linear_regression_coefficients(x_readings, y_readings):
+    b1 = cal_covariance(x_readings, y_readings) / float(cal_variance(x_readings))
+    b0 = cal_mean(y_readings) - (b1 * cal_mean(x_readings))
+    return b0, b1
+
+
+def predict_target_value(x, b0, b1):
+
+    return b0 + b1 * x
+
+
+def cal_rmse(actual_readings, predicted_readings):
+
+    square_error_total = 0.0
+    total_readings = len(actual_readings)
+    for i in range(0, total_readings):
+        error = predicted_readings[i] - actual_readings[i]
+        square_error_total += pow(error, 2)
+    rmse = square_error_total / float(total_readings)
+    return rmse
+
+
+def simple_linear_regression(dataset,alpha):
+    
+    dataset_headers = get_headers(dataset)
+    print ("Dataset Headers :: ", dataset_headers)
+    
+    Y_mean = cal_mean(dataset[dataset_headers[0]])
+    X_mean = cal_mean(dataset[dataset_headers[1]])
+    Y_variance = cal_variance(dataset[dataset_headers[0]])
+    X_variance = cal_variance(dataset[dataset_headers[1]])
+    covariance_of_X_and_Y = dataset.cov()[dataset_headers[0]][dataset_headers[1]]
+    w1 = covariance_of_X_and_Y / float(Y_variance)
+    w0 = X_mean - (w1 * Y_mean)
+    res=float(w0)+(float(w1)*alpha)
+    mse=(pow.sqrt((Y_test-y_pred)**2))/len(Y_test)
+    print("Predicted Value for 86 is :",res)
+    print("Mean Squared Error is : ",mse)
+
+if __name__ == "__main__":
+
+    input_path = "dataset.csv"
+    data = pd.read_csv(input_path)
+    alpha=86
+    simple_linear_regression(data,alpha)
+
+# %%
+#logisticregression
+import pandas as pd 
+from matplotlib import pyplot as plt 
+
+# %%
+dataset=pd.read_csv("insurance.csv") 
+dataset
+
+# %%
+plt.scatter(dataset.age,dataset.have_insurance,marker='+',color='red') 
+
+# %%
+from sklearn.model_selection import train_test_split 
+x_train, x_test, y_train, y_test = train_test_split(dataset[['age']],dataset.have_insurance,train_size=0.8) 
+#training data
+from sklearn.linear_model import LogisticRegression 
+model=LogisticRegression() 
+model.fit(x_train, y_train) 
+LogisticRegression(C=1.0, class_weight=None, dual=False, fit_intercept=True, intercept_scaling=1, l1_ratio=None, max_iter=100, multi_class='auto', n_jobs=None, penalty='12', random_state=None, solver='lbfgs', tol=0.0001, verbose=0, warm_start=False) 
+
+model.coef_
+print("coefficient of x is",model.coef_) 
+
+
+model.intercept_ 
+print("intercept of line is",model.intercept_) 
+
+# %%
+import math 
+def sigmoid(x): 
+    return 1/(1+math.exp(-x)) 
+def prediction_function(age): 
+    z= 0.280409*age -7.942535
+    #z=mx+c
+    z
+    y=sigmoid(z) 
+    return y 
+
+#predicting if person with age 33 has insurance or not
+age=33
+y=prediction_function(age) 
+print("Probability of person with age 33 having insurance is",y) 
+
+print("As 0.787 is greater than 0.5 which means person with age 33 has insurance ")
+
+
+# %%
+
+
+# %% [markdown]
+# Without Lib
+
+# %%
+import numpy as np
+import pandas as pd
+
+# Load the data
+data = pd.read_csv("insurance.csv")
+
+# Extract the feature and target variable
+X = data["age"].values.reshape(-1, 1)
+y = data["have_insurance"].values.reshape(-1, 1)
+
+# Split the data into training and testing sets
+np.random.seed(42)
+indices = np.random.permutation(len(X))
+split = int(0.8 * len(X))
+train_indices, test_indices = indices[:split], indices[split:]
+X_train, X_test = X[train_indices], X[test_indices]
+y_train, y_test = y[train_indices], y[test_indices]
+
+# Scale the features
+mean = np.mean(X_train, axis=0)
+std = np.std(X_train, axis=0)
+X_train = (X_train - mean) / std
+X_test = (X_test - mean) / std
+
+# Define the logistic regression model
+def sigmoid(z):
+    return 1 / (1 + np.exp(-z))
+
+def predict(X, w):
+    z = np.dot(X, w)
+    return sigmoid(z)
+
+def loss(X, y, w):
+    y_pred = predict(X, w)
+    return -np.mean(y * np.log(y_pred) + (1 - y) * np.log(1 - y_pred))
+
+def gradient(X, y, w):
+    y_pred = predict(X, w)
+    return np.dot(X.T, y_pred - y) / len(y)
+
+def logistic_regression(X, y, num_iterations=1000, learning_rate=0.1):
+    # Initialize weights to zero
+    w = np.zeros((X.shape[1], 1))
+    
+    # Update weights using gradient descent
+    for i in range(num_iterations):
+        grad = gradient(X, y, w)
+        w -= learning_rate * grad
+        
+        # Print loss every 100 iterations
+        
+    
+    return w
+
+# Train the model
+w = logistic_regression(X_train, y_train)
+
+# Make predictions on the test set
+y_pred = predict(X_test, w)
+
+# Convert probabilities to binary predictions
+y_pred_binary = np.round(y_pred)
+
+# Calculate RMSE
+rmse = np.sqrt(np.mean((y_test - y_pred) ** 2))
+print("RMSE:", rmse)
+
+# Predict the result for a particular input
+input_data = np.array([33]).reshape(1, -1)
+input_data_scaled = (input_data - mean) / std
+
+result = predict(input_data_scaled, w)'''
+result =sigmoid(result)
+if(result>.5)
+ ''' 
+print("Prediction for input:", sigmoid(result))
+
+
+# %%
+
+
+# %%
+#multiplereg
+import pandas as pd 
+import numpy as np 
+import matplotlib.pyplot as plt 
+from sklearn import linear_model 
+import math 
+
+# %%
+dataset=pd.read_csv("house_price.csv") 
+dataset
+
+# %%
+X=dataset.iloc[:,:-1]
+y=dataset.iloc[:,-1].values.reshape(dataset.shape[0],1)
+
+
+# %%
+reg = linear_model.LinearRegression() 
+reg.fit(dataset[['area','bedrooms','age']],dataset.price) 
+reg.coef_ 
+print("coefficients of x in line are:",reg.coef_) 
+reg.intercept_ 
+print("intercept of line",reg.intercept_) 
+
+#After training, Predict for the new sample.
+
+#Find price of home with 3000 sqr ft area, 3 bedrooms, 40 year old house
+# price=m1*area+m2*bedrooms+m3*age+c
+print("price of home with 3000 sqr ft area, 3 bedrooms, 40 year old house") 
+print(reg.predict([[3000, 3, 40]])) 
+
+
+#Find price of home with 2500 sqr ft area, 4 bedrooms, 5 year old house
+print("price of home with 2500 sqr ft area, 4 bedrooms, 5 year old house") 
+print(reg.predict([[2500, 4, 5]]))    
+
+# %%
+
+from sklearn.model_selection import train_test_split
+X_train,X_test,y_train,y_test=train_test_split(X,y,test_size=0.2)
+
+
+X_test=np.array(X_test)
+X_test=X_test[:,0:]
+X_test
+
+# %% [markdown]
+# Without Libraries
+
+# %%
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# %%
+X = np.vstack((np.ones((X.shape[0], )), X.T)).T
+X_test = np.vstack((np.ones((X_test.shape[0], )), X_test.T)).T
+
+# %%
+def model(X, Y, learning_rate, iteration):
+    m = Y.size
+    theta = np.zeros((X.shape[1], 1))
+    cost_list = []
+    for i in range(iteration):
+      y_pred = np.dot(X, theta)
+      cost = (1/(2*m))*np.sum(np.square(y_pred - Y))
+      d_theta = (1/m)*np.dot(X.T, y_pred - Y)
+      theta = theta - learning_rate*d_theta
+      cost_list.append(cost)
+      # to print the cost for 10 times
+      if(i%(iteration/10) == 0):
+        continue
+    return theta, cost_list
+X.shape
+
+# %%
+iteration = 10000
+learning_rate = 0.000000005
+theta, cost_list = model(X, y, learning_rate = learning_rate, iteration =
+iteration)
+
+# %%
+theta.shape
+
+# %%
+y_pred = np.dot(X_test, theta)
+rmse=np.sqrt(np.mean((y_pred - y_test) ** 2))
+error = (1/X_test.shape[0])*np.sum(np.abs(y_pred - y_test))
+
+# %%
+error
+
+# %%
+rmse
+
+# %%
+def predict(X, theta):
+    # Add constant column to features
+    #X = np.c_[np.ones(X.shape[0]), X]
+    # Make predictions using the trained model
+    #print(X.shape)
+    X=np.array(X)
+    y_pred = X.dot(theta)
+    return y_pred
+
+# Load new data for prediction
+new_data = [[3000, 3, 40]]
+
+# Make predictions using trained model
+y_pred_new = predict(new_data, theta)
+print("Predicted prices: {:.20f}".format(float( y_pred_new)))
+
+# %%
+#naive
+import numpy as nm 
+import matplotlib.pyplot as mtp 
+import pandas as pd 
+from sklearn.model_selection import train_test_split 
+from sklearn.preprocessing import LabelEncoder 
+
+# %%
+dataset = pd.read_csv('naive.csv') 
+print("Sample Dataset - \n",dataset,"\n")
+
+# %%
+
+le_outlook = LabelEncoder() 
+dataset['outlook_n'] = le_outlook.fit_transform(dataset['Outlook']) 
+le_temperature = LabelEncoder() 
+dataset['temperature_n'] = le_temperature.fit_transform(dataset['Temperature']) 
+le_humidity = LabelEncoder() 
+dataset['humidity_n'] = le_humidity.fit_transform(dataset['Humidity']) 
+le_wind = LabelEncoder() 
+dataset['wind_n'] = le_wind.fit_transform(dataset['Wind'])
+print("Given Data after Encoding - \n",dataset,"\n") 
+
+# %%
+x = dataset[['outlook_n','temperature_n','humidity_n','wind_n']] 
+print("X - Values\n",x,"\n") 
+y = dataset['PlayTennis'] 
+print("Y - Values\n",y,"\n")
+
+
+# %%
+x_train, x_test, y_train, y_test = train_test_split(x, y, test_size = 0.15, random_state = 0) 
+from sklearn.naive_bayes import GaussianNB 
+gnb = GaussianNB() 
+gnb.fit(x, y) 
+y_pred = gnb.predict(x_test) 
+print("Testing values for play tennis\n",y_test) 
+print("Predicted values for play tennis",y_pred) 
+
+# %%
+from sklearn.metrics import accuracy_score
+
+# %%
+accuracy_score(y_test,y_pred)
+
+# %%
+
+
+# %%
+import pandas as pd
+import numpy as np
+import math
+import random
+import warnings
+warnings.filterwarnings("ignore")
+def load_csv(filename):
+    return pd.read_csv(filename)
+ 
+def str_column_to_int(dataset):
+    for column in dataset.columns:
+        if dataset[column].dtype == np.object:
+            dataset[column] = dataset[column].astype('category').cat.codes
+    return dataset
+ 
+def split_dataset(dataset, split_ratio):
+    train_size = int(len(dataset) * split_ratio)
+    train_set = dataset.sample(n=train_size)
+    test_set = dataset.drop(train_set.index)
+    return [train_set, test_set]
+ 
+def separate_by_class(dataset):
+    separated = {}
+    for i in range(len(dataset)):
+        vector = dataset.iloc[i]
+        if (vector.iloc[-1] not in separated):
+            separated[vector.iloc[-1]] = []
+        separated[vector.iloc[-1]].append(vector)
+    return separated
+ 
+def mean(numbers):
+    return sum(numbers)/float(len(numbers))
+ 
+def stdev(numbers):
+    avg = mean(numbers)
+    variance = sum([pow(x-avg,2) for x in numbers])/float(len(numbers)-1)
+    return math.sqrt(variance)
+ 
+def summarize(dataset):
+    summaries = [(mean(attribute), stdev(attribute)) for attribute in zip(*dataset)]
+    del summaries[-1]
+    return summaries
+ 
+def summarize_by_class(dataset):
+    separated = separate_by_class(dataset)
+    summaries = {}
+    for class_value, instances in separated.items():
+        summaries[class_value] = summarize(instances)
+    return summaries
+ 
+def calculate_probability(x, mean, stdev):
+    exponent = math.exp(-(math.pow(x-mean,2)/(2*math.pow(stdev,2))))
+    return (1 / (math.sqrt(2*math.pi) * stdev)) * exponent
+ 
+def calculate_class_probabilities(summaries, input_vector):
+    probabilities = {}
+    for class_value, class_summaries in summaries.items():
+        probabilities[class_value] = 1
+        for i in range(len(class_summaries)):
+            mean, stdev = class_summaries[i]
+            x = input_vector[i]
+            probabilities[class_value] *= calculate_probability(x, mean, stdev)
+    return probabilities
+ 
+def predict(summaries, input_vector):
+    probabilities = calculate_class_probabilities(summaries, input_vector)
+    best_label, best_prob = None, -1
+    for class_value, probability in probabilities.items():
+        if best_label is None or probability > best_prob:
+            best_prob = probability
+            best_label = class_value
+    return best_label
+ 
+def get_predictions(summaries, test_set):
+    predictions = []
+    for i in range(len(test_set)):
+        result = predict(summaries, test_set.iloc[i])
+        predictions.append(result)
+    return predictions
+ 
+def get_accuracy(test_set, predictions):
+    correct = 0
+    for i in range(len(test_set)):
+        if test_set.iloc[i,-1] == predictions[i]:
+            correct += 1
+    return (correct / float(len(test_set))) * 100.0
+ 
+def main():
+    filename = 'naive.csv'
+    split_ratio = 0.8
+    dataset = load_csv(filename)
+    dataset = str_column_to_int(dataset)
+    training_set, test_set = split_dataset(dataset, split_ratio)
+    print('Split {0} rows into train={1} and test={2} rows'.format(len(dataset), len(training_set), len(test_set)))
+    # prepare model
+    summaries = summarize_by_class(training_set)
+    # test model
+    predictions = get_predictions(summaries, test_set)
+    accuracy = get_accuracy(test_set, predictions)
+    print('Accuracy: {0}%\n\n\n\n'.format(accuracy))
+
+main()
+
+
+# %%
+
+
+# %%
+#percept
+def predict(r, w):
+	activation = w[0]
+	for i in range(len(r)-1):
+		activation += w[i + 1] * r[i]
+	return 1.0 if activation >= 0.0 else 0.0
+
+def trainweights(train, l_rate, n_epoch):
+	weights = [0.0 for i in range(len(train[0]))]
+	for epoch in range(n_epoch):
+		sum_error = 0.0
+		for row in train:
+			prediction = predict(row, weights)
+			error = row[-1] - prediction
+			sum_error += error**2
+			weights[0] = weights[0] + l_rate * error
+			for i in range(len(row)-1):
+				weights[i + 1] = weights[i + 1] + l_rate * error * row[i]
+		print('>epoch=%d, lrate=%.3f, error=%.3f' % (epoch, l_rate, sum_error))
+	return weights
+
+# Calculate weights
+dataset = [[0,0,0],
+	[0,1,1],
+	[1,0,1],
+	[1,1,1]]
+l_rate = 0.5
+n_epoch = 5
+weights = trainweights(dataset, l_rate, n_epoch)
+print('New values of w1=', weights[0],' w2=',weights[1])
+
+# %%
+import numpy as np
+import tensorflow as tf
+from tensorflow import keras
+import matplotlib.pyplot as plt
+import pandas as pd
+
+data = pd.read_csv("/home/matlab/data.csv")
+
+print(data)
+
+def activation_func(value):
+    return ((np.exp(value)-np.exp(-value))/(np.exp(value)+np.exp(-value)))
+
+def perceptron_train(in_data,labels,alpha):
+    X=np.array(in_data)
+    y=np.array(labels)
+    weights=np.random.random(X.shape[1])
+    original=weights
+    bias=np.random.random_sample()
+    for key in range(X.shape[0]):
+        a=activation_func(np.matmul(np.transpose(weights),X[key]))     
+        yn=0
+        if a>=0.7:
+            yn=1
+        elif a<=(-0.7):
+            yn=-1
+        weights=weights+alpha*(yn-y[key])*X[key]
+        print('Iteration '+str(key)+': '+str(weights))
+    print('Difference: '+str(weights-original))
+    return weights
+
+
+def perceptron_test(in_data,label_shape,weights):
+    X=np.array(in_data)
+    y=np.zeros(label_shape)
+    for key in range(X.shape[1]):
+        a=activation_func((weights*X[key]).sum())
+        y[key]=0
+        if a>=0.7:
+            y[key]=1
+        elif a<=(-0.7):
+            y[key]=-1
+    return y
+
+
+def score(result,labels):
+    difference=result-np.array(labels)                                                        
+    correct_ctr=0
+    for elem in range(difference.shape[0]):
+        if difference[elem]==0:
+            correct_ctr+=1
+    score=correct_ctr*100/difference.size
+    print('Score='+str(score))
+    
+    
+    
+divider = np.random.rand(len(data)) < 0.70
+d_train=data[divider]
+d_test=data[~divider]
+
+
+
+d_train_y=d_train['Y']
+d_train_X=d_train.drop(['Y'],axis=1)
+
+d_test_y=d_test['Y']
+d_test_X=d_test.drop(['Y'],axis=1)
+
+alpha = 0.05
+
+weights = perceptron_train(d_train_X, d_train_y, alpha)
+
+result_test=perceptron_test(d_test_X,d_test_y.shape,weights)
+
+print("w1=",weights[0],"w2=",weights[1])
+score(result_test,d_test_y)
+
+
+# %%
+#singleperceptnolib
+def predict(r, w):
+	activation = w[0]
+	for i in range(len(r)-1):
+		activation += w[i + 1] * r[i]
+	return 1.0 if activation >= 0.0 else 0.0
+
+def trainweights(train, l_rate, n_epoch):
+	weights = [0.0 for i in range(len(train[0]))]
+	for epoch in range(n_epoch):
+		sum_error = 0.0
+		for row in train:
+			prediction = predict(row, weights)
+			error = row[-1] - prediction
+			sum_error += error**2
+			weights[0] = weights[0] + l_rate * error
+			for i in range(len(row)-1):
+				weights[i + 1] = weights[i + 1] + l_rate * error * row[i]
+		print('>epoch=%d, lrate=%.3f, error=%.3f' % (epoch, l_rate, sum_error))
+	return weights
+
+# Calculate weights
+
+
+# %%
+dataset = [[0,0,0],
+	[0,1,1],
+	[1,0,1],
+	[1,1,1]]
+l_rate = 0.5
+n_epoch = 5
+weights = trainweights(dataset, l_rate, n_epoch)
+print('New values of w1=', weights[0],' w2=',weights[1])
+
+
+# %%
+
+
+# %%
+#singleperceptron
+from sklearn.datasets import load_iris
+from sklearn.linear_model import Perceptron
+from sklearn.metrics import accuracy_score
+from sklearn.model_selection import train_test_split
+import numpy as np
+iris = load_iris()
+X = iris.data
+y = iris.target
+X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+model = Perceptron(random_state=42)
+model.fit(X_train, y_train)
+y_pred = model.predict(X_val)
+accuracy = accuracy_score(y_val, y_pred)
+print("Accuracy:", accuracy)
+
+
+# %%
+iris
+
+# %%
+
+
+# %%
+#svm
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+dataset=pd.read_csv('SVM.csv')
+x=dataset.iloc[:, 2:-1].values
+y=dataset.iloc[:, -1].values
+
+# %%
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+x_train,x_test,y_train,y_test=train_test_split(x,y,test_size=0.27,random_state=0)
+sc=StandardScaler()
+x_train=sc.fit_transform(x_train)
+x_test=sc.transform(x_test)
+X=sc.fit_transform(x)
+
+
+# %%
+from sklearn.svm import SVC
+classifier=SVC(kernel='linear',random_state=0)
+classifier.fit(x_train,y_train)
+classifier.predict(sc.transform([[30,87000]]))
+y_pred=classifier.predict(x_test)
+
+
+# %%
+from sklearn.metrics import confusion_matrix,accuracy_score
+cm=confusion_matrix(y_test,y_pred)
+print(cm)
+print('Accuracy Score: ',accuracy_score(y_test,y_pred))
+
+# %%
+from matplotlib.colors import ListedColormap  
+x_set, y_set = x_train, y_train  
+x1, x2 = np.meshgrid(np.arange(start = x_set[:, 0].min() - 1, stop = x_set[:, 0].max() + 1, step  =0.01),  
+np.arange(start = x_set[:, 1].min() - 1, stop = x_set[:, 1].max() + 1, step = 0.01))  
+plt.contourf(x1, x2, classifier.predict(np.array([x1.ravel(), x2.ravel()]).T).reshape(x1.shape),  
+alpha = 0.75, cmap = ListedColormap(('red', 'green')))  
+plt.xlim(x1.min(), x1.max())  
+plt.ylim(x2.min(), x2.max())  
+for i, j in enumerate(np.unique(y_set)):  
+    plt.scatter(x_set[y_set == j, 0], x_set[y_set == j, 1],  
+        c = ListedColormap(('red', 'green'))(i), label = j)  
+plt.title('SVM classifier (Training set)')  
+plt.xlabel('Age')  
+plt.ylabel('Estimated Salary')  
+plt.legend()  
+plt.show()  
+
+# %%
+#Visulaizing the test set result  
+from matplotlib.colors import ListedColormap  
+x_set, y_set = x_test, y_test  
+x1, x2 = np.meshgrid(np.arange(start = x_set[:, 0].min() - 1, stop = x_set[:, 0].max() + 1, step  =0.01),  
+np.arange(start = x_set[:, 1].min() - 1, stop = x_set[:, 1].max() + 1, step = 0.01))  
+plt.contourf(x1, x2, classifier.predict(np.array([x1.ravel(), x2.ravel()]).T).reshape(x1.shape),  
+alpha = 0.75, cmap = ListedColormap(('red','green' )))  
+plt.xlim(x1.min(), x1.max())  
+plt.ylim(x2.min(), x2.max())  
+for i, j in enumerate(np.unique(y_set)):  
+    plt.scatter(x_set[y_set == j, 0], x_set[y_set == j, 1],  
+        c = ListedColormap(('red', 'green'))(i), label = j)  
+plt.title('SVM classifier (Test set)')  
+plt.xlabel('Age')  
+plt.ylabel('Estimated Salary')  
+plt.legend()  
+plt.show() 
+
+# %%
+
+
+# %%
+
+
+# %%
+
+
+# %% [markdown]
+# without libraries
+
+# %%
+# importing numpy library
+import numpy as np
+class SVM_classifier():
+
+
+  # initiating the hyperparameters
+  def __init__(self, learning_rate, no_of_iterations, lambda_parameter):
+
+    self.learning_rate = learning_rate
+    self.no_of_iterations = no_of_iterations
+    self.lambda_parameter = lambda_parameter
+
+
+  
+  # fitting the dataset to SVM Classifier
+  def fit(self, X, Y):
+
+    # m  --> number of Data points --> number of rows
+    # n  --> number of input features --> number of columns
+    self.m, self.n = X.shape
+
+    # initiating the weight value and bias value
+
+    self.w = np.zeros(self.n)
+
+    self.b = 0
+
+    self.X = X
+
+    self.Y = Y
+
+    # implementing Gradient Descent algorithm for Optimization
+
+    for i in range(self.no_of_iterations):
+      self.update_weights()
+
+
+
+  # function for updating the weight and bias value
+  def update_weights(self):
+
+    # label encoding
+    y_label = np.where(self.Y <= 0, -1, 1)
+
+
+
+    # gradients ( dw, db)
+    for index, x_i in enumerate(self.X):
+
+      condition = y_label[index] * (np.dot(x_i, self.w) - self.b) >= 1
+
+      if (condition == True):
+
+        dw = 2 * self.lambda_parameter * self.w
+        db = 0
+
+      else:
+
+        dw = 2 * self.lambda_parameter * self.w - np.dot(x_i, y_label[index])
+        db = y_label[index]
+
+
+      self.w = self.w - self.learning_rate * dw
+
+      self.b = self.b - self.learning_rate * db
+
+
+
+  # predict the label for a given input value
+  def predict(self, X):
+
+    output = np.dot(X, self.w) - self.b
+    
+    predicted_labels = np.sign(output)
+
+    y_hat = np.where(predicted_labels <= -1, 0, 1)
+
+    return y_hat  
+
+
+
+# %%
+classifier = SVM_classifier(learning_rate=0.001, no_of_iterations=1000, lambda_parameter=0.01)
+
+# %%
+# training the SVM classifier with training data
+classifier.fit(x_train, y_train)
+
+# %%
+from matplotlib.colors import ListedColormap  
+x_set, y_set = x_train, y_train  
+x1, x2 = np.meshgrid(np.arange(start = x_set[:, 0].min() - 1, stop = x_set[:, 0].max() + 1, step  =0.01),  
+np.arange(start = x_set[:, 1].min() - 1, stop = x_set[:, 1].max() + 1, step = 0.01))  
+plt.contourf(x1, x2, classifier.predict(np.array([x1.ravel(), x2.ravel()]).T).reshape(x1.shape),  
+alpha = 0.75, cmap = ListedColormap(('red', 'green')))  
+plt.xlim(x1.min(), x1.max())  
+plt.ylim(x2.min(), x2.max())  
+for i, j in enumerate(np.unique(y_set)):  
+    plt.scatter(x_set[y_set == j, 0], x_set[y_set == j, 1],  
+        c = ListedColormap(('red', 'green'))(i), label = j)  
+plt.title('SVM classifier (Training set)')  
+plt.xlabel('Age')  
+plt.ylabel('Estimated Salary')  
+plt.legend()  
+plt.show()  
+
+# %%
+y_pred = classifier.predict(x_test)
+#Visulaizing the test set result  
+from matplotlib.colors import ListedColormap  
+x_set, y_set = x_test, y_test  
+x1, x2 = np.meshgrid(np.arange(start = x_set[:, 0].min() - 1, stop = x_set[:, 0].max() + 1, step  =0.01),  
+np.arange(start = x_set[:, 1].min() - 1, stop = x_set[:, 1].max() + 1, step = 0.01))  
+plt.contourf(x1, x2, classifier.predict(np.array([x1.ravel(), x2.ravel()]).T).reshape(x1.shape),  
+alpha = 0.75, cmap = ListedColormap(('red','green' )))  
+plt.xlim(x1.min(), x1.max())  
+plt.ylim(x2.min(), x2.max())  
+for i, j in enumerate(np.unique(y_set)):  
+    plt.scatter(x_set[y_set == j, 0], x_set[y_set == j, 1],  
+        c = ListedColormap(('red', 'green'))(i), label = j)  
+plt.title('SVM classifier (Test set)')  
+plt.xlabel('Age')  
+plt.ylabel('Estimated Salary')  
+plt.legend()  
+plt.show() 
+
+# %%
+def accuracy(y_true, y_pred):
+    # count the number of correctly predicted samples
+    correct = np.sum(y_true == y_pred)
+    # return the accuracy as a fraction of the total number of samples
+    return correct / len(y_true)
+
+print(accuracy(y_test,y_pred))
+
+# %%
+input_data = (5,166,72,19,175,25.8,0.587,51)
+
+# change the input data to numpy array
+input_data_as_numpy_array = np.asarray(input_data)
+
+# reshape the array
+input_data_reshaped = input_data_as_numpy_array.reshape(1,-1)
+
+# standardizing the input data
+std_data = sc.transform(input_data_reshaped)
+print(std_data)
+
+prediction = classifier.predict(std_data)
+print(prediction)
+
+if (prediction[0] == 0):
+  print('The person is not diabetic')
+
+else:
+  print('The Person is diabetic')
+
+# %%
+#svmnonlinear
+import numpy as nm  
+import matplotlib.pyplot as mtp  
+import pandas as pd 
+
+# %%
+data_set= pd.read_csv('SVM.csv')  
+  
+#Extracting Independent and dependent Variable  
+X= data_set.iloc[:, [2,3]].values  
+y= data_set.iloc[:, 4].values  
+#X = np.random.randn(200, 2)
+#y = np.sign(X[:, 0]**2 + X[:, 1]**2 - 0.5)  
+# Splitting the dataset into training and test set.  
+from sklearn.model_selection import train_test_split  
+x_train, x_test, y_train, y_test= train_test_split(X, y, test_size= 0.25, random_state=0)  
+#feature Scaling  
+from sklearn.preprocessing import StandardScaler    
+st_x= StandardScaler()    
+x_train= st_x.fit_transform(x_train)    
+x_test= st_x.transform(x_test)  
+
+# %%
+from sklearn.svm import SVC 
+classifier = SVC(kernel='rbf', random_state=0)  
+classifier.fit(x_train, y_train)  
+y_pred= classifier.predict(x_test)
+
+# %%
+from sklearn.metrics import confusion_matrix  
+cm= confusion_matrix(y_test, y_pred)
+cm 
+
+# %%
+from matplotlib.colors import ListedColormap  
+x_set, y_set = x_train, y_train  
+x1, x2 = nm.meshgrid(nm.arange(start = x_set[:, 0].min() - 1, stop = x_set[:, 0].max() + 1, step  =0.01),  
+nm.arange(start = x_set[:, 1].min() - 1, stop = x_set[:, 1].max() + 1, step = 0.01))  
+mtp.contourf(x1, x2, classifier.predict(nm.array([x1.ravel(), x2.ravel()]).T).reshape(x1.shape),  
+alpha = 0.75, cmap = ListedColormap(('red', 'green')))  
+mtp.xlim(x1.min(), x1.max())  
+mtp.ylim(x2.min(), x2.max())  
+for i, j in enumerate(nm.unique(y_set)):  
+    mtp.scatter(x_set[y_set == j, 0], x_set[y_set == j, 1],  
+        c = ListedColormap(('red', 'green'))(i), label = j)  
+mtp.title('SVM classifier (Training set)')  
+mtp.xlabel('Age')  
+mtp.ylabel('Estimated Salary')  
+mtp.legend()  
+mtp.show()  
+
+# %%
+#Visulaizing the test set result  
+from matplotlib.colors import ListedColormap  
+x_set, y_set = x_test, y_test  
+x1, x2 = nm.meshgrid(nm.arange(start = x_set[:, 0].min() - 1, stop = x_set[:, 0].max() + 1, step  =0.01),  
+nm.arange(start = x_set[:, 1].min() - 1, stop = x_set[:, 1].max() + 1, step = 0.01))  
+mtp.contourf(x1, x2, classifier.predict(nm.array([x1.ravel(), x2.ravel()]).T).reshape(x1.shape),  
+alpha = 0.75, cmap = ListedColormap(('red','green' )))  
+mtp.xlim(x1.min(), x1.max())  
+mtp.ylim(x2.min(), x2.max())  
+for i, j in enumerate(nm.unique(y_set)):  
+    mtp.scatter(x_set[y_set == j, 0], x_set[y_set == j, 1],  
+        c = ListedColormap(('red', 'green'))(i), label = j)  
+mtp.title('SVM classifier (Test set)')  
+mtp.xlabel('Age')  
+mtp.ylabel('Estimated Salary')  
+mtp.legend()  
+mtp.show()  
+
+# %%
+
+
+# %%
+
+
+# %%
+import numpy as np
+import matplotlib.pyplot as plt
+
+class NonlinearSVM:
+    def __init__(self, kernel='rbf', gamma=1.0, C=1.0, tol=1e-3, max_passes=5):
+        self.kernel = kernel
+        self.gamma = gamma
+        self.C = C
+        self.tol = tol
+        self.max_passes = max_passes
+    
+    def _kernel(self, X1, X2):
+        if self.kernel == 'rbf':
+            return np.exp(-self.gamma*np.linalg.norm(X1 - X2)**2)
+        elif self.kernel == 'poly':
+            return (1 + np.dot(X1, X2))**self.gamma
+    
+    def fit(self, X, y):
+        self.X = X
+        self.y = y
+        self.alphas = np.zeros(len(X))
+        self.b = 0.0
+        self.K = np.zeros((len(X), len(X)))
+        for i in range(len(X)):
+            for j in range(len(X)):
+                self.K[i, j] = self._kernel(X[i], X[j])
+        self._smo(X, y)
+    
+    def _predict_one(self, x):
+        return np.sign(np.sum(self.alphas*self.y*self._kernel(self.X, x)) + self.b)
+    
+    def predict(self, X):
+        return np.array([self._predict_one(x) for x in X])
+    
+    def _smo(self, X, y):
+        passes = 0
+        num_changed_alphas = 0
+        while passes < self.max_passes and num_changed_alphas > 0:
+            num_changed_alphas = 0
+            for i in range(len(X)):
+                Ei = self.predict(X[i]) - y[i]
+                if (y[i]*Ei < -self.tol and self.alphas[i] < self.C) or (y[i]*Ei > self.tol and self.alphas[i] > 0):
+                    j = np.random.choice(list(range(i)) + list(range(i+1, len(X))))
+                    Ej = self.predict(X[j]) - y[j]
+                    alpha_i_old = self.alphas[i]
+                    alpha_j_old = self.alphas[j]
+                    if y[i] != y[j]:
+                        L = max(0, self.alphas[j] - self.alphas[i])
+                        H = min(self.C, self.C + self.alphas[j] - self.alphas[i])
+                    else:
+                        L = max(0, self.alphas[i] + self.alphas[j] - self.C)
+                        H = min(self.C, self.alphas[i] + self.alphas[j])
+                    if L == H:
+                        continue
+                    eta = 2*self.K[i, j] - self.K[i, i] - self.K[j, j]
+                    if eta >= 0:
+                        continue
+                    self.alphas[j] -= y[j]*(Ei - Ej)/eta
+                    self.alphas[j] = max(self.alphas[j], L)
+                    self.alphas[j] = min(self.alphas[j], H)
+                    if abs(self.alphas[j] - alpha_j_old) < 1e-5:
+                        continue
+                    self.alphas[i] += y[i]*y[j]*(alpha_j_old - self.alphas[j])
+                    b1 = self.b - Ei - y[i]*(self.alphas[i] - alpha_i_old)*self.K[i, i] - y[j]*(self.alphas[j] - alpha_j_old)*self.K[i, j]
+                   
+                    b2 = self.b - Ej - y[i]*(self.alphas[i] - alpha_i_old)*self.K[i, j] - y[j]*(self.alphas[j] - alpha_j_old)*self.K[j, j]
+                    if 0 < self.alphas[i] < self.C:
+                        self.b = b1
+                    elif 0 < self.alphas[j] < self.C:
+                        self.b = b2
+                    else:
+                        self.b = (b1 + b2)/2.0
+                    num_changed_alphas += 1
+            if num_changed_alphas == 0:
+                passes += 1
+    
+    def plot(self, X, y):
+    # create a meshgrid over the feature space
+      x1, x2 = np.meshgrid(np.linspace(np.min(X[:, 0]), np.max(X[:, 0]), 100), 
+                          np.linspace(np.min(X[:, 1]), np.max(X[:, 1]), 100))
+      # compute predicted values for each point in the meshgrid
+      Z = np.zeros(x1.shape)
+      for i in range(x1.shape[0]):
+          for j in range(x1.shape[1]):
+              Z[i, j] = self._predict_one(np.array([x1[i, j], x2[i, j]]))
+      
+      # plot the contour plot of predicted values
+      plt.contourf(x1, x2, Z, alpha=0.4, cmap=plt.cm.coolwarm)
+      plt.colorbar()
+      # plot the training data points
+      plt.scatter(X[:, 0], X[:, 1], c=y, cmap=plt.cm.coolwarm)
+      
+      # plot the hyperplane
+      w = np.dot(self.alphas * y, self.X)
+      b = self.b
+      xp = np.linspace(np.min(X[:, 0]), np.max(X[:, 0]), 100)
+      yp = - (w[0] * xp + b) / w[1]
+      plt.plot(xp, yp, '-k')
+      
+      plt.title('Nonlinear SVM')
+      plt.show()
+
+
+
+# %%
+# generate sample data
+#X = np.random.randn(200, 2)
+#y = np.sign(X[:, 0]**2 + X[:, 1]**2 - 0.5)
+
+# train SVM
+svm = NonlinearSVM(kernel='rbf', gamma=10.0, C=10.0, tol=1e-3, max_passes=5)
+svm.fit(X, y)
+
+# plot decision boundary
+
+svm.plot(X, y)
+x_set, y_set = x_test, y_test  
+x1, x2 = nm.meshgrid(nm.arange(start = x_set[:, 0].min() - 1, stop = x_set[:, 0].max() + 1, step  =0.01),  
+nm.arange(start = x_set[:, 1].min() - 1, stop = x_set[:, 1].max() + 1, step = 0.01))  
+mtp.contourf(x1, x2, classifier.predict(nm.array([x1.ravel(), x2.ravel()]).T).reshape(x1.shape),  alpha = 0.75, cmap = ListedColormap(('blue','red' ))) 
+
+mtp.xlim(x1.min(), x1.max())  
+mtp.ylim(x2.min(), x2.max())  
+for i, j in enumerate(nm.unique(y_set)):  
+    mtp.scatter(x_set[y_set == j, 0], x_set[y_set == j, 1],  
+        c = ListedColormap(('red', 'blue'))(i), label = j)  
+
+
+# %%
+
+
+
